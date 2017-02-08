@@ -72,11 +72,24 @@ def combine_images(generated_images):
             img[0, :, :]
     return image
 
+def checkdirs(directory):
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
 
 def train(BATCH_SIZE):
+    # directory management
+    checkdirs('images')
+    checkdirs('images/training')
+    checkdirs('images/generated')
+    checkdirs('models')
+    
+    # import and format data
     (X_train, y_train), (X_test, y_test) = mnist.load_data()
     X_train = (X_train.astype(np.float32) - 127.5)/127.5
     X_train = X_train.reshape((X_train.shape[0], 1) + X_train.shape[1:])
+    
+    # create and format models 
     discriminator = discriminator_model()
     generator = generator_model()
     discriminator_on_generator = \
@@ -89,6 +102,9 @@ def train(BATCH_SIZE):
     discriminator.trainable = True
     discriminator.compile(loss='binary_crossentropy', optimizer=d_optim)
     noise = np.zeros((BATCH_SIZE, 100))
+
+
+    # start iterations for training
     for epoch in range(100):
         print("Epoch is", epoch)
         print("Number of batches", int(X_train.shape[0]/BATCH_SIZE))
@@ -101,7 +117,7 @@ def train(BATCH_SIZE):
                 image = combine_images(generated_images)
                 image = image*127.5+127.5
                 Image.fromarray(image.astype(np.uint8)).save(
-                    str(epoch)+"_"+str(index)+".png")
+                    "images/training/"+str(epoch)+"_"+str(index)+".png")
             X = np.concatenate((image_batch, generated_images))
             y = [1] * BATCH_SIZE + [0] * BATCH_SIZE
             d_loss = discriminator.train_on_batch(X, y)
@@ -113,19 +129,21 @@ def train(BATCH_SIZE):
                 noise, [1] * BATCH_SIZE)
             discriminator.trainable = True
             print("batch %d g_loss : %f" % (index, g_loss))
+
+            # save midtrained models
             if index % 10 == 9:
-                generator.save_weights('generator', True)
-                discriminator.save_weights('discriminator', True)
+                generator.save_weights('models/generator', True)
+                discriminator.save_weights('models/discriminator', True)
 
 
 def generate(BATCH_SIZE, nice=False):
     generator = generator_model()
     generator.compile(loss='binary_crossentropy', optimizer="SGD")
-    generator.load_weights('generator')
+    generator.load_weights('models/generator')
     if nice:
         discriminator = discriminator_model()
         discriminator.compile(loss='binary_crossentropy', optimizer="SGD")
-        discriminator.load_weights('discriminator')
+        discriminator.load_weights('models/discriminator')
         noise = np.zeros((BATCH_SIZE*20, 100))
         for i in range(BATCH_SIZE*20):
             noise[i, :] = np.random.uniform(-1, 1, 100)
@@ -149,7 +167,7 @@ def generate(BATCH_SIZE, nice=False):
         image = combine_images(generated_images)
     image = image*127.5+127.5
     Image.fromarray(image.astype(np.uint8)).save(
-        "generated_image.png")
+        "images/generated/generated_image.png")
 
 
 def get_args():
